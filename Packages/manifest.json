@@ -1,9 +1,5 @@
 {
   "dependencies": {
-    "com.ivanmurzak.unity.mcp": "0.67.3",
-    "com.ivanmurzak.unity.mcp.animation": "1.1.25",
-    "com.ivanmurzak.unity.mcp.particlesystem": "1.0.52",
-    "com.ivanmurzak.unity.mcp.probuilder": "1.0.64",
     "com.unity.feature.development": "1.0.2",
     "com.unity.inputsystem": "1.19.0",
     "com.unity.learn.iet-framework": "5.0.3",

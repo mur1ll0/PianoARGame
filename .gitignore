@@ -78,3 +78,4 @@ crashlytics-build.properties
 /tools/piano_vision_training/runs/
 /tools/piano_vision_training/datasets/
 /tools/piano_vision_training/test_images/
+/PianoARGame_BackUpThisFolder_ButDontShipItWithYourGame
