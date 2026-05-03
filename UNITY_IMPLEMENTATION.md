@@ -2,13 +2,14 @@
 
 ## 1. Objetivo
 
-Este documento descreve a implementacao completa do AR Piano Game em Unity/C#, com paridade funcional em relacao ao prototipo Python em `tools/piano_ar_game/ar_piano_game.py`.
+Este documento descreve a implementacao completa do AR Piano Game em Unity/C#.
 
 Fluxo funcional:
-1. Menu com selecao de MIDI
-2. Align com deteccao ONNX da area do teclado
-3. Gameplay com notas MIDI em queda
-4. Tela final
+1. Menu principal (Selecionar musica / Configuracoes / Sair)
+2. Tela de selecao de MIDI
+3. Align com deteccao ONNX da area do teclado
+4. Gameplay com notas MIDI em queda
+5. Tela final
 
 Tambem cobre:
 - funcionamento em PC e Android
@@ -19,9 +20,29 @@ Tambem cobre:
 
 ## 2. Estrutura Ativa no Projeto
 
-Implementacao principal:
-- `Assets/Scripts/ARPianoParity/ArPianoParityGame.cs`
-- `Assets/Scripts/ARPianoParity/ArPianoParityBootstrap.cs`
+### Classe principal (partial class)
+
+`ARPianoGame` foi dividida em arquivos partial para facilitar manutencao. Todos os arquivos declaram `public sealed partial class ARPianoGame : MonoBehaviour` no namespace `PianoARGame`.
+
+| Arquivo | Responsabilidade |
+|---------|-----------------|
+| `ARPianoGame.cs` | Nucleo: enums, structs, campos, `Awake`, `OnDestroy`, `Update`, `BootstrapCameraStartup` |
+| `ARPianoGame.UI.cs` | Renderizacao IMGUI: `OnGUI`, todos os metodos `Draw*`, helpers de estilo e escala |
+| `ARPianoGame.Camera.cs` | Gerenciamento de camera: iniciar, selecionar dispositivo, modos de resolucao |
+| `ARPianoGame.Detection.cs` | Pipeline de inferencia ONNX: preprocess, inferencia, decode de bbox |
+| `ARPianoGame.Midi.cs` | Descoberta e parsing de arquivos MIDI |
+| `ARPianoGame.Gameplay.cs` | Transicoes de estado de jogo e calculos de notas |
+| `ARPianoGame.Diagnostics.cs` | Dump de artefatos de debug (imagens, estatisticas) |
+| `ARPianoGame.HMD.cs` | Modo XR/HMD, orientacao Android, helpers de input |
+
+Arquivos de suporte:
+- `Assets/Scripts/ARPiano/ARPianoBootstrap.cs`
+
+Arquitetura complementar (separacao por contexto):
+- UI
+  - `Assets/Scripts/ARPiano/UI/UiScaleCalculator.cs`
+- Services
+  - `Assets/Scripts/ARPiano/Services/MidiRepository.cs`
 
 Cena principal:
 - `Assets/Scenes/Gameplay.unity`
@@ -30,22 +51,21 @@ Modelo ONNX:
 - `Assets/AIModels/piano_SGD.onnx`
 - `Assets/Resources/AIModels/piano_SGD.onnx` (fallback para carga via Resources)
 
-Documentacao Python:
-- `tools/piano_ar_game/README.md`
 
 ## 3. Arquitetura do Runtime Unity
 
 ### 3.1 Maquina de estados
 
-`ArPianoParityGame` usa estes estados:
-- `Menu`
+`ARPianoGame` usa estes estados:
+- `MainMenu`
+- `SongSelect`
 - `Align`
 - `Game`
 - `End`
 
 ### 3.2 Bootstrap automatico
 
-`ArPianoParityBootstrap` garante que o objeto `AR Piano Parity Game` exista em runtime, evitando dependencia de setup manual da cena.
+`ARPianoBootstrap` garante que o objeto `AR Piano Game` exista em runtime, evitando dependencia de setup manual da cena.
 
 ### 3.3 Loop principal
 
@@ -56,8 +76,24 @@ Documentacao Python:
 
 - `OnGUI()`:
   - desenha frame de camera como fundo
-  - desenha HUD e UI por estado
+  - desenha HUD e UI por estado com escala responsiva para mobile
   - desenha retangulos/overlay de teclado e notas
+  - desenha botao global `MENU` no canto para retorno imediato ao menu principal
+
+### 3.4 UI mobile-first
+
+Foi aplicado ajuste de escala dinamica da interface para evitar texto/botoes pequenos no celular:
+- considera menor dimensao da tela
+- considera DPI em plataformas mobile
+- ajusta fontes e dimensoes de elementos por `uiScale`
+
+Principais telas:
+- Main menu com 3 botoes grandes:
+  - Selecionar musica
+  - Configuracoes
+  - Sair
+- SongSelect dedicada apenas para lista de MIDIs e acoes de jogo
+- Configuracoes em overlay scrollavel (acessivel no menu principal pelo botao `Configuracoes`)
 
 ## 4. Pipeline de Camera e Inferencia
 
@@ -99,6 +135,30 @@ Detalhe importante:
 - conversao `cx, cy, w, h -> x1, y1, x2, y2`
 - NMS por IoU
 
+### 4.6 Configuracoes em runtime
+
+A overlay de configuracoes inclui abas:
+- MIDI
+  - Android: pasta fixa do app (`Application.persistentDataPath/MIDI`)
+  - Android: botao `Importar MIDI` via seletor do sistema
+  - Android: importacao de um ou multiplos arquivos por vez
+  - Desktop/PC: caminho customizado editavel
+  - recarregar lista de arquivos
+- Camera
+  - selecao de dispositivo
+  - selecao de modo (resolucao/FPS)
+  - aplicar camera
+- Deteccao
+  - `confThreshold`
+  - `iouThreshold`
+  - backend (CPU/GPUCompute)
+  - secao avancada (detect interval, estabilidade, classes, fallback input)
+- Gameplay
+  - velocidade, countdown, travel time
+  - auto-HMD
+- Diagnostico
+  - dumps de inferencia e limite
+
 ## 5. MIDI e Gameplay
 
 ### 5.1 Leitura MIDI
@@ -120,9 +180,31 @@ Detalhe importante:
 ## 6. Android e HMD
 
 - fluxo igual ao desktop
-- MIDIs via `StreamingAssets/MIDI`
+- MIDIs no Android via pasta interna do app: `Application.persistentDataPath/MIDI`
+- importacao de MIDIs externos via seletor nativo do Android (SAF)
 - opcao de entrar em HMD ao iniciar gameplay (`enableHmdModeOnGameStart`)
 - inicializacao via XR Management em runtime
+
+### 6.1 Correcao de descoberta de MIDI no Android
+
+A busca de MIDIs no Android foi simplificada para estabilidade com scoped storage:
+- raiz unica: `Application.persistentDataPath/MIDI`
+- criacao automatica da pasta se nao existir
+- varredura recursiva segura dentro da pasta do app
+
+### 6.2 Importacao MIDI no Android (sem manifest custom)
+
+Fluxo implementado:
+- usuario toca `Importar MIDI`
+- abre seletor nativo (ACTION_OPEN_DOCUMENT)
+- usuario pode selecionar um ou mais arquivos MIDI
+- arquivos sao copiados para `Application.persistentDataPath/MIDI`
+- lista de MIDIs e recarregada automaticamente
+
+Detalhes de implementacao:
+- sem `AndroidManifest.xml` custom no projeto
+- bridge Java acoplada a Activity atual da Unity via Fragment
+- callback de retorno para Unity via `UnitySendMessage`
 
 ## 7. Problema Real de Inversao no Unity e Solucao
 
@@ -216,50 +298,42 @@ Fluxo:
 - alinhar teclado
 - iniciar jogo
 
-## 10. Como Executar (Python de referencia)
+## 10. Troubleshooting Rapido
 
-No diretorio `tools/piano_ar_game`:
-
-```powershell
-python ar_piano_game.py --model "C:\Users\Murillo\Documents\Unity Projects\PianoARGame\Assets\AIModels\piano_SGD.onnx" --midi-dir "C:\Users\Murillo\Music\MIDI" --camera 0 --width 1920 --height 1080 --fps 60
-```
-
-## 11. Troubleshooting Rapido
-
-### 11.1 Detecta mas desenha fora do lugar
+### 10.1 Detecta mas desenha fora do lugar
 
 - conferir se o frame usado para desenhar e o mesmo referencial usado no decode
 - conferir mapeamento frame -> tela
 - conferir flip vertical no eixo Y
 
-### 11.2 Score baixo no Unity vs Python
+### 10.2 Score baixo no Unity vs Python
 
 - comparar dumps (`input_tensor`, `top_scores`, `output shape`)
 - confirmar input size real (`640x640`)
 - conferir preprocess em pixel bruto
 
-### 11.3 Camera ruim/instavel
+### 10.3 Camera ruim/instavel
 
 - testar iluminacao
 - reduzir detect interval para maior qualidade visual
 - garantir USB/camera sem gargalo
 
-## 12. Arquivos de Referencia
+## 11. Arquivos de Referencia
 
 - Unity runtime principal:
-  - `Assets/Scripts/ARPianoParity/ArPianoParityGame.cs`
+  - `Assets/Scripts/ARPiano/ARPianoGame.cs`
 - Unity bootstrap:
-  - `Assets/Scripts/ARPianoParity/ArPianoParityBootstrap.cs`
+  - `Assets/Scripts/ARPiano/ARPianoBootstrap.cs`
+- Servico de repositorio MIDI:
+  - `Assets/Scripts/ARPiano/Services/MidiRepository.cs`
+- Utilitario de escala da UI:
+  - `Assets/Scripts/ARPiano/UI/UiScaleCalculator.cs`
 - Cena:
   - `Assets/Scenes/Gameplay.unity`
-- Python base:
-  - `tools/piano_ar_game/ar_piano_game.py`
-- Documentacao Python:
-  - `tools/piano_ar_game/README.md`
 - Este documento:
   - `tools/piano_ar_game/UNITY_IMPLEMENTATION.md`
 
-## 13. Estado Atual
+## 12. Estado Atual
 
 - paridade funcional com Python alcançada para o fluxo principal
 - deteccao ONNX estabilizada

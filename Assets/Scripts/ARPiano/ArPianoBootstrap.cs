@@ -1,19 +1,19 @@
 using UnityEngine;
 
-namespace PianoARGame.Parity
+namespace PianoARGame
 {
-    public static class ArPianoParityBootstrap
+    public static class ArPianoBootstrap
     {
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void EnsureGameObjectExists()
         {
-            if (Object.FindAnyObjectByType<ArPianoParityGame>() != null)
+            if (Object.FindAnyObjectByType<ArPianoGame>() != null)
             {
                 return;
             }
 
-            var go = new GameObject("AR Piano Parity Game");
-            go.AddComponent<ArPianoParityGame>();
+            var go = new GameObject("AR Piano Game");
+            go.AddComponent<ArPianoGame>();
             Object.DontDestroyOnLoad(go);
         }
     }

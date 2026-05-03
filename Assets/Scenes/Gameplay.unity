@@ -426,7 +426,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8db8bd60435513e44b557e34d8cd96b3, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PianoARGame.Parity.ArPianoParityGame
+  m_EditorClassIdentifier: Assembly-CSharp::PianoARGame.ArPianoGame
   onnxModel: {fileID: 5022602860645237092, guid: 9975cda6bd16ccf4a89e21295b4902b4, type: 3}
   resourcesModelPath: AIModels/piano_SGD
   backendType: 0
