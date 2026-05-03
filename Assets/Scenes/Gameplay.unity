@@ -146,17 +146,28 @@ MonoBehaviour:
   m_GameObject: {fileID: 67915885}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4f231c4fb786f3946a6b90b886c48677, type: 3}
+  m_Script: {fileID: 11500000, guid: 01614664b831546d2ae94a42149d80ac, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.EventSystems.StandaloneInputModule
+  m_EditorClassIdentifier: Unity.InputSystem::UnityEngine.InputSystem.UI.InputSystemUIInputModule
   m_SendPointerHoverToParent: 1
-  m_HorizontalAxis: Horizontal
-  m_VerticalAxis: Vertical
-  m_SubmitButton: Submit
-  m_CancelButton: Cancel
-  m_InputActionsPerSecond: 10
-  m_RepeatDelay: 0.5
-  m_ForceModuleActive: 0
+  m_MoveRepeatDelay: 0.5
+  m_MoveRepeatRate: 0.1
+  m_XRTrackingOrigin: {fileID: 0}
+  m_ActionsAsset: {fileID: 0}
+  m_PointAction: {fileID: 0}
+  m_MoveAction: {fileID: 0}
+  m_SubmitAction: {fileID: 0}
+  m_CancelAction: {fileID: 0}
+  m_LeftClickAction: {fileID: 0}
+  m_MiddleClickAction: {fileID: 0}
+  m_RightClickAction: {fileID: 0}
+  m_ScrollWheelAction: {fileID: 0}
+  m_TrackedDevicePositionAction: {fileID: 0}
+  m_TrackedDeviceOrientationAction: {fileID: 0}
+  m_DeselectOnBackgroundClick: 1
+  m_PointerBehavior: 0
+  m_CursorLockBehavior: 0
+  m_ScrollDeltaPerTick: 6
 --- !u!114 &67915887
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -262,10 +273,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: be05aed9ab4d3fa4888d7b9a18e0c488, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PianoARGame.AR.TestWebcamController
+  webcamName: Iriun Webcam
+  requestedFPS: 30
+  requestedWidth: 1280
+  requestedHeight: 720
   detector: {fileID: 1387529286}
   configService: {fileID: 1677709845}
-  captureInterval: 6
-  webcamName: Iriun Webcam
+  detectionIntervalSeconds: 0.35
+  stabilityDurationSeconds: 2
+  detectionWidth: 640
+  showStage1Overlay: 1
+  showStage2KeyOverlay: 1
+  showStage2DebugOverlay: 1
+  showOnnxRawTestMode: 0
+  modelTestIntervalSeconds: 0.12
   enableCsvLogging: 0
   csvFlushEveryNFrames: 30
 --- !u!4 &157770700
@@ -1165,7 +1186,7 @@ MonoBehaviour:
     m_FontStyle: 1
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 48
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -1355,6 +1376,16 @@ MonoBehaviour:
   minConfidence: 0.6
   thresholdFactor: 0.35
   minRequiredPeaks: 5
+  keyboardProfile: 0
+  profileSnapTolerance: 0.22
+  onnxModel: {fileID: 5022602860645237092, guid: 9c3e2832b8dbbc6478d8770c2e987dfa, type: 3}
+  useOnnxBackend: 1
+  backendType: 512
+  inferenceInputSize: 640
+  onnxConfidenceThreshold: 0.45
+  onnxIouThreshold: 0.45
+  onnxNumClasses: 1
+  _lastOnnxResolveError: 
 --- !u!4 &1387529287
 Transform:
   m_ObjectHideFlags: 0

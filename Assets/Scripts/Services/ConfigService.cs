@@ -11,13 +11,17 @@ namespace PianoARGame.Services
     public class ConfigService : MonoBehaviour
     {
         private const string ConfigFileName = "config.json";
-        public const int CurrentSchemaVersion = 2;
+        public const int CurrentSchemaVersion = 3;
+        public const string GradientBackend = "GradientMVP";
+        public const string OnnxCandidateABackend = "ONNX_CandidateA";
+        public const string OnnxCandidateBBackend = "ONNX_CandidateB";
 
         [Serializable]
         private class ConfigData
         {
             public int schemaVersion = CurrentSchemaVersion;
             public string musicFolderPath;
+            public string activeModelBackend = OnnxCandidateABackend;
             public CalibrationProfile calibration;
         }
 
@@ -79,11 +83,50 @@ namespace PianoARGame.Services
             return data.calibration;
         }
 
+        public string GetActiveModelBackend()
+        {
+            if (data == null) Load();
+            if (string.IsNullOrWhiteSpace(data.activeModelBackend))
+            {
+                data.activeModelBackend = OnnxCandidateABackend;
+                Persist();
+            }
+
+            if (!data.activeModelBackend.StartsWith("ONNX", StringComparison.OrdinalIgnoreCase))
+            {
+                data.activeModelBackend = OnnxCandidateABackend;
+                Persist();
+            }
+
+            return data.activeModelBackend;
+        }
+
+        public bool GetUseOnnxBackendPreference()
+        {
+            return true;
+        }
+
         public void SetCalibrationProfile(CalibrationProfile profile)
         {
             if (data == null) data = new ConfigData();
             data.calibration = profile;
             Persist();
+        }
+
+        public void SetActiveModelBackend(string backend)
+        {
+            if (data == null) data = new ConfigData();
+            data.activeModelBackend = string.IsNullOrWhiteSpace(backend)
+                ? OnnxCandidateABackend
+                : backend.StartsWith("ONNX", StringComparison.OrdinalIgnoreCase)
+                    ? backend
+                    : OnnxCandidateABackend;
+            Persist();
+        }
+
+        public void SetUseOnnxBackendPreference(bool enabled)
+        {
+            SetActiveModelBackend(OnnxCandidateABackend);
         }
 
         public void ClearCalibrationProfile()
@@ -123,6 +166,16 @@ namespace PianoARGame.Services
                 if (string.IsNullOrWhiteSpace(data.musicFolderPath))
                 {
                     data.musicFolderPath = DefaultMusicPath;
+                }
+
+                if (string.IsNullOrWhiteSpace(data.activeModelBackend))
+                {
+                    data.activeModelBackend = OnnxCandidateABackend;
+                }
+
+                if (!data.activeModelBackend.StartsWith("ONNX", StringComparison.OrdinalIgnoreCase))
+                {
+                    data.activeModelBackend = OnnxCandidateABackend;
                 }
 
                 if (data.schemaVersion <= 0)

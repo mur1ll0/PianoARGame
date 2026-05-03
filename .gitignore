@@ -73,3 +73,8 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# Model training files
+/tools/piano_vision_training/runs/
+/tools/piano_vision_training/datasets/
+/tools/piano_vision_training/test_images/

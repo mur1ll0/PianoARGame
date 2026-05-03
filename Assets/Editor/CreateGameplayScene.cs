@@ -3,6 +3,9 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem.UI;
+#endif
 using PianoARGame.AR;
 using PianoARGame.Services;
 using PianoARGame.Gameplay;
@@ -162,7 +165,11 @@ public static class CreateGameplayScene
         {
             var esGo = new GameObject("EventSystem");
             esGo.AddComponent<EventSystem>();
+#if ENABLE_INPUT_SYSTEM
+            esGo.AddComponent<InputSystemUIInputModule>();
+#else
             esGo.AddComponent<StandaloneInputModule>();
+#endif
         }
     }
 

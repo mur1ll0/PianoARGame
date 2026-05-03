@@ -5,7 +5,7 @@ Visão Geral
 - Plataformas alvo: Android (principal), Unity Editor (webcam) para testes; HMDs opcionais.
 
 Requisitos Funcionais (resumo)
-- Detecção: `PianoDetector` detecta instrumento e retorna polígono/pose.
+- Detecção: `PianoDetector` usa ONNX obrigatoriamente para detectar a área do teclado e retorna polígono/pose.
 - Contagem de teclas: `KeyEstimator` identifica e conta teclas e fornece mapeamento 2D/3D por tecla.
 - Mapeamento MIDI→Teclas: `MidiMapper` associa notas MIDI a índices de tecla com offset configurável.
 - Overlays: `TrailRendererAR` desenha trilhas por tecla e segue o tracking do teclado.
@@ -30,13 +30,16 @@ Arquitetura & APIs (propostas)
 - `ScoreManager` — `StartSession(songId)`, `AddHit(index, score)`, `GetHighScore(songId)`, `Save()`.
 
 Detecção & Tracking (detalhes)
-- Pipeline recomendado:
-  1. Detector de instrumento (bounding + orientation).
-  2. Refinamento: detectar linhas/arestas das teclas (Hough/edges) e segmentação brancas/pretas.
-  3. Contagem de teclas por padrão repetitivo.
-  4. Calcular homography imagem→plano do teclado.
-  5. Tracking: usar ARCore/AR Foundation pose; fallback optical-flow.
+- Pipeline atual (Etapa 1 + Etapa 2 provisória):
+  1. Stage-1 ONNX: detector segmentado de `keyboard_area` (obrigatório, sem modo heurístico global).
+  2. Stage-2 heurístico local: contagem/colunas de teclas apenas dentro da ROI detectada.
+  3. Calibração por perfil de teclado: `Auto`, `61`, `76`, `88` para reduzir falsos picos.
+  4. Tracking: usa resultado de detecção da área do teclado para alinhamento dos sistemas de gameplay.
 - Métricas de ACEITAÇÃO: contagem de teclas ≥95% precisão; overlay alinhado ≤10 px a 30 cm (Editor) / ≤2 cm no mundo real.
+
+Debug visual no Editor
+- `TestWebcamController` desenha overlay da bbox ONNX (stage-1), ROI do stage-2 e picos brutos detectados.
+- O painel de detecção mostra métricas `stage2KeyCountRaw`, perfil esperado (`61/76/88`) e contagem final.
 
 MIDI & Sincronização
 - Ler Note On/Off, Set Tempo; usar `AudioSettings.dspTime` para sincronização.
@@ -64,16 +67,16 @@ Riscos & Mitigações
 - Baixa luz: indicar instruções ao usuário; fallback para homography.
 - Oclusões: usar tracking temporal e previsão (Kalman).
 
-Estado de implementação (25/04/2026)
+Estado de implementação (01/05/2026)
 > Scripts já implementados e compilando sem erros:
 
 **Camada AR / Detecção**
-- `Assets/Scripts/AR/PianoDetector.cs` — pipeline grayscale→gradiente→picos, `DetectionResult` com telemetria completa (`processingTimeMs`, `gradientMean`, `gradientMax`, `confidence`, `reprojectionError`, `statusMessage`).
+- `Assets/Scripts/AR/PianoDetector.cs` — ONNX obrigatório para stage-1 (`keyboard_area`) + stage-2 heurístico local na ROI detectada; calibração por perfil (`Auto/61/76/88`) para reduzir falsos picos; `DetectionResult` inclui telemetria de debug (`stage2Roi`, `stage2PeaksRaw`, `stage2KeyCountRaw`, `stage2ExpectedKeyCount`, `periodicityScore`).
 - `Assets/Scripts/AR/KeyEstimator.cs` — deriva `KeyInfo[]` (bbox2D, pos3D, width) de `DetectionResult`.
 - `Assets/Scripts/AR/CalibrationManager.cs` — snapshot markerless, proposição de cantos, homografia simples, persistência via `ConfigService`.
 - `Assets/Scripts/AR/KeyboardTracker.cs` — FSM Lost/Degraded/Tracked por limiar de confiança com gate de predição.
 - `Assets/Scripts/AR/ARSessionManager.cs` — inicializa sessão AR/webcam fallback.
-- `Assets/Scripts/AR/TestWebcamController.cs` — captura de webcam para Editor, snapshot de frame.
+- `Assets/Scripts/AR/TestWebcamController.cs` — captura de webcam para Editor, snapshot de frame, seleção de perfil de teclado do stage-2 e overlay debug ROI/picos para validação visual rápida.
 - `Assets/Scripts/AR/DetectionChecker.cs` — helper de diagnóstico do pipeline.
 - `Assets/Scripts/AR/UIManager.cs` — gerencia mensagens de estado AR.
 - `Assets/Scripts/AR/MidiLoader.cs` — parser MIDI mínimo (Note On/Off, Set Tempo).
@@ -154,7 +157,7 @@ Estrutura proposta para o projeto Unity, seguindo boas práticas:
   - `bool IsRunning { get; }`
 
 2) `PianoDetector`
-- Responsabilidades: detectar piano/teclado na câmera e entregar `DetectionResult` com polígono e pose estimada.
+- Responsabilidades: detectar a área de teclado via ONNX (stage-1) e estimar contagem/bordas de teclas via heurística local calibrada por perfil (stage-2), entregando `DetectionResult` com polígono, bbox, confiança e telemetria de debug.
 - Contrato:
   - `DetectionResult Detect(Texture2D frame)` (sincrono para testes) e `Task<DetectionResult> DetectAsync(Texture2D frame)` em implementação futura.
 
@@ -207,7 +210,7 @@ Estrutura proposta para o projeto Unity, seguindo boas práticas:
   - Android build (Development) to smoke test AR integration.
 
 ## Riscos adicionais e mitigação (detalhado)
-- Variação visual dos teclados: mitigar com heurísticas baseadas em linhas e proporções em vez de textura.
+- Variação visual dos teclados: mitigar com detector ONNX da área e stage-2 calibrado por perfil (61/76/88), reduzindo falsos picos em iluminação/ângulo variáveis.
 - Latência de input em mobile: reduzir pre-processing, priorizar tempo real do `AudioSettings.dspTime`.
 
 ## Quiosques e testes manuais

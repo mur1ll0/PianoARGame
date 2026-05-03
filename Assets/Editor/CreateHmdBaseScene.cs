@@ -5,6 +5,9 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem.UI;
+#endif
 using PianoARGame.AR;
 using PianoARGame.Services;
 using PianoARGame.UI;
@@ -103,7 +106,11 @@ public static class CreateHmdBaseScene
 
         var es = new GameObject("EventSystem");
         es.AddComponent<EventSystem>();
+    #if ENABLE_INPUT_SYSTEM
+        es.AddComponent<InputSystemUIInputModule>();
+    #else
         es.AddComponent<StandaloneInputModule>();
+    #endif
     }
 
     private static GameObject CreatePanel(Transform parent, string name)
