@@ -700,12 +700,7 @@ namespace PianoARGame
                     if (GUI.Button(new Rect(U(8f), y, U(320f), U(40f)), "Alternar backend: " + backendType, buttonStyle))
                     {
                         backendType = backendType == Unity.InferenceEngine.BackendType.CPU ? Unity.InferenceEngine.BackendType.GPUCompute : Unity.InferenceEngine.BackendType.CPU;
-                        modelInitAttempted = false;
-                        if (worker != null)
-                        {
-                            worker.Dispose();
-                            worker = null;
-                        }
+                        RequestDetectionWorkerRestart();
                     }
 
                     y += U(50f);
@@ -717,7 +712,33 @@ namespace PianoARGame
                     {
                         DrawIntStepperRow(ref y, viewRect.width, "Intervalo de inferencia", ref detectInterval, 1, 20, 1);
                         DrawIntStepperRow(ref y, viewRect.width, "Frames estaveis para liberar jogo", ref stableHitsRequired, 1, 100, 1);
+                        int previousFallback = fallbackInputSize;
                         DrawIntStepperRow(ref y, viewRect.width, "Input fallback do modelo", ref fallbackInputSize, 128, 1280, 32);
+                        if (fallbackInputSize != previousFallback)
+                        {
+                            RequestDetectionWorkerRestart();
+                        }
+
+                        enableAndroidAdaptiveInputSize = GUI.Toggle(new Rect(U(8f), y, viewRect.width - U(20f), U(34f)), enableAndroidAdaptiveInputSize, "Android: input adaptativo por estado");
+                        y += U(42f);
+                        DrawIntStepperRow(ref y, viewRect.width, "Android input Align", ref androidAlignInputSize, 160, 1280, 32);
+                        DrawIntStepperRow(ref y, viewRect.width, "Android input Game", ref androidGameInputSize, 160, 1280, 32);
+                        DrawIntStepperRow(ref y, viewRect.width, "Android decode max candidatos", ref androidDecodeMaxCandidates, 16, 1000, 8);
+                        DrawIntStepperRow(ref y, viewRect.width, "Android decode max kept", ref androidDecodeMaxKept, 8, 300, 4);
+                        enableAndroidWorkerInference = GUI.Toggle(new Rect(U(8f), y, viewRect.width - U(20f), U(34f)), enableAndroidWorkerInference, "Android: inferencia no worker (CPU)");
+                        y += U(42f);
+                        enableAndroidFastDecodeSampling = GUI.Toggle(new Rect(U(8f), y, viewRect.width - U(20f), U(34f)), enableAndroidFastDecodeSampling, "Android: fast decode sampling");
+                        y += U(42f);
+                        DrawIntStepperRow(ref y, viewRect.width, "Android decode scan max", ref androidDecodeScanMaxCandidates, 128, 5000, 64);
+                        enableAndroidMainInferBreakdown = GUI.Toggle(new Rect(U(8f), y, viewRect.width - U(20f), U(34f)), enableAndroidMainInferBreakdown, "Android: log breakdown inferencia");
+                        y += U(42f);
+
+                        if (Application.platform == RuntimePlatform.Android && modelInputIsStatic)
+                        {
+                            DrawTextBox(new Rect(U(8f), y, viewRect.width - U(20f), U(54f)), "Modelo com shape estatico: input adaptativo fica limitado ao tamanho fixo do ONNX.", new Color(0.12f, 0.12f, 0.12f, 0.85f));
+                            y += U(66f);
+                        }
+
                         DrawIntStepperRow(ref y, viewRect.width, "Numero de classes", ref numClasses, 1, 8, 1);
                     }
                     break;
@@ -728,8 +749,6 @@ namespace PianoARGame
                     DrawSliderRow(ref y, viewRect.width, "Velocidade da musica", ref songSpeed, 0.5f, 2f, 0.05f);
                     DrawSliderRow(ref y, viewRect.width, "Contagem inicial (s)", ref countdownSeconds, 1f, 8f, 0.25f);
                     DrawSliderRow(ref y, viewRect.width, "Tempo de viagem das notas", ref travelTime, 0.5f, 4f, 0.1f);
-                    enableHmdModeOnGameStart = GUI.Toggle(new Rect(U(8f), y, viewRect.width - U(20f), U(34f)), enableHmdModeOnGameStart, "Ativar HMD automaticamente ao iniciar o jogo");
-                    y += U(42f);
                     autoStartFirst = GUI.Toggle(new Rect(U(8f), y, viewRect.width - U(20f), U(34f)), autoStartFirst, "Auto iniciar primeira musica no boot");
                     break;
 

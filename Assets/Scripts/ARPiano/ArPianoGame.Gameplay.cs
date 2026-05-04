@@ -43,15 +43,12 @@ namespace PianoARGame
         {
             state = GameState.Game;
             gameStartTime = Time.realtimeSinceStartup;
-            if (Application.platform == RuntimePlatform.Android && enableHmdModeOnGameStart)
-            {
-                RequestHmdMode();
-            }
         }
 
         private void ResetToMenu()
         {
             ExitHmdMode();
+            StopDetectionWorker();
             RestoreDefaultCameraSelection();
             RestartCamera();
             ResetTrackingState();
@@ -71,6 +68,7 @@ namespace PianoARGame
             lastConfiguredDetectInterval = -1;
             cameraDiagnosticsLogged = false;
             dumpedInferenceArtifacts = 0;
+            detectionOutputAppliedVersion = detectionOutputVersion;
         }
 
         private void UpdateRenderFps()

@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 using Unity.InferenceEngine;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -81,8 +82,8 @@ namespace PianoARGame
 
         [Header("Camera")]
         [SerializeField] private string cameraDeviceName = "";
-        [SerializeField] private int requestedWidth = 1920;
-        [SerializeField] private int requestedHeight = 1080;
+        [SerializeField] private int requestedWidth = 640;
+        [SerializeField] private int requestedHeight = 640;
         [SerializeField] private int requestedFps = 60;
         [SerializeField] private bool preferBackCamera = true;
 
@@ -100,7 +101,24 @@ namespace PianoARGame
         [SerializeField] private bool autoStartFirst = false;
 
         [Header("Android XR")]
-        [SerializeField] private bool enableHmdModeOnGameStart = true;
+        [SerializeField] private bool enableHmdModeOnGameStart = false;
+
+        [Header("Threading")]
+        [SerializeField] private bool enableDetectionThreadingOnAndroid = true;
+        [SerializeField] private bool enableAndroidThreadDiagnostics = true;
+        [SerializeField] private bool enableAndroidAdaptiveInputSize = true;
+        [SerializeField, Range(160, 1280)] private int androidAlignInputSize = 416;
+        [SerializeField, Range(160, 1280)] private int androidGameInputSize = 320;
+        [SerializeField, Range(16, 1000)] private int androidDecodeMaxCandidates = 120;
+        [SerializeField, Range(8, 300)] private int androidDecodeMaxKept = 40;
+        [SerializeField] private bool enableAndroidFastDecodeSampling = true;
+        [SerializeField, Range(128, 5000)] private int androidDecodeScanMaxCandidates = 1200;
+        [SerializeField] private bool enableAndroidWorkerInference = true;
+        [SerializeField] private bool enableAndroidMainInferBreakdown = true;
+        [SerializeField, Range(0.1f, 3f)] private float androidMinInferenceIntervalSeconds = 1.2f;
+        [SerializeField, Range(0.5f, 6f)] private float androidMaxInferenceIntervalSeconds = 3f;
+        [SerializeField, Min(1f)] private float androidSlowInferenceThresholdMs = 120f;
+        [SerializeField, Range(0.02f, 1f)] private float androidMaxPreprocessedFrameAgeSeconds = 0.25f;
 
         [Header("Diagnostics")]
         [SerializeField] private bool dumpInferenceArtifacts = true;
@@ -117,9 +135,13 @@ namespace PianoARGame
 
         private Model runtimeModel;
         private Worker worker;
+        private BackendType activeBackendType = BackendType.CPU;
         private string[] outputNames = Array.Empty<string>();
         private int modelInputW;
         private int modelInputH;
+        private int activeInputW;
+        private int activeInputH;
+        private bool modelInputIsStatic;
 
         private readonly List<string> midiFiles = new List<string>();
         private int selectedIndex;
@@ -189,6 +211,51 @@ namespace PianoARGame
         private Coroutine cameraStartupCheckRoutine;
         private readonly List<Detection> decodeCandidates = new List<Detection>(512);
         private readonly List<Detection> decodeKept = new List<Detection>(256);
+        private readonly object detectionInputLock = new object();
+        private readonly object detectionPreprocessLock = new object();
+        private readonly object detectionOutputLock = new object();
+        private Thread detectionThread;
+        private AutoResetEvent detectionSignal;
+        private bool detectionThreadShouldRun;
+        private bool detectionThreadReady;
+        private bool detectionThreadInitFailed;
+        private string detectionThreadError = string.Empty;
+        private float detectionThreadRetryAtTime;
+        private float androidDiagnosticsNextLogAt;
+        private float lastMainThreadInferenceMs;
+        private float lastMainScheduleMs;
+        private float lastMainPickOutputMs;
+        private float lastMainDecodeMs;
+        private float lastMainDecodeDownloadMs;
+        private bool lastMainDecodeUsedCloneFallback;
+        private float lastWorkerPreprocessMs;
+        private float lastMainThreadInferenceAtTime;
+        private int mainThreadManagedId;
+        private int workerThreadManagedId;
+        private Color32[] detectionInputBuffer;
+        private int detectionInputWidth;
+        private int detectionInputHeight;
+        private int detectionInputFrameId;
+        private float detectionInputTimestamp;
+        private int detectionInputVersion;
+        private float[] detectionPreprocessedInputBuffer;
+        private int detectionPreprocessedImageWidth;
+        private int detectionPreprocessedImageHeight;
+        private int detectionPreprocessedInputWidth;
+        private int detectionPreprocessedInputHeight;
+        private int detectionPreprocessedFrameId;
+        private float detectionPreprocessedTimestamp;
+        private int detectionPreprocessedVersion;
+        private int detectionPreprocessedAppliedVersion;
+        private int detectionOutputVersion;
+        private int detectionOutputAppliedVersion;
+        private bool detectionOutputHasDetection;
+        private Detection detectionOutput;
+        private int detectionOutputFrameId;
+        private float detectionOutputTimestamp;
+        private float detectionOutputInferMs;
+        private float detectionOutputDecodeMs;
+        private bool detectionWorkerRestartRequested;
 
         private GUIStyle headerStyle;
         private GUIStyle titleStyle;
@@ -346,6 +413,8 @@ namespace PianoARGame
 
         private void OnDestroy()
         {
+            StopDetectionWorker();
+
             if (webcam != null)
             {
                 if (webcam.isPlaying)

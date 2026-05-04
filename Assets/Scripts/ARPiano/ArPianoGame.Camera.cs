@@ -76,11 +76,10 @@ namespace PianoARGame
                 }
 
 #if UNITY_ANDROID && !UNITY_EDITOR
-                if (requestedFps >= 60 && requestedWidth > 1280)
-                {
-                    requestedWidth = 1280;
-                    requestedHeight = 720;
-                }
+                // Keep camera acquisition aligned with model input and request 60 FPS.
+                requestedWidth = 640;
+                requestedHeight = 640;
+                requestedFps = 60;
 #endif
 
                 cameraDeviceName = targetName;
@@ -112,6 +111,8 @@ namespace PianoARGame
 
         private void StopCamera()
         {
+            StopDetectionWorker();
+
             if (cameraStartupCheckRoutine != null)
             {
                 StopCoroutine(cameraStartupCheckRoutine);
@@ -132,6 +133,13 @@ namespace PianoARGame
             sourceFramePixels = null;
             resizedPixelsBuffer = null;
             inputTensorBuffer = null;
+            detectionInputBuffer = null;
+            detectionInputVersion = 0;
+            detectionPreprocessedInputBuffer = null;
+            detectionPreprocessedVersion = 0;
+            detectionPreprocessedAppliedVersion = 0;
+            detectionOutputVersion = 0;
+            detectionOutputAppliedVersion = 0;
             latestCorrectedFrameWidth = 0;
             latestCorrectedFrameHeight = 0;
 
@@ -253,12 +261,14 @@ namespace PianoARGame
             AddCameraModeOption(1920, 1080, 30);
             AddCameraModeOption(1280, 720, 60);
             AddCameraModeOption(1280, 720, 30);
+            AddCameraModeOption(640, 640, 60);
+            AddCameraModeOption(640, 640, 30);
             AddCameraModeOption(640, 480, 60);
             AddCameraModeOption(640, 480, 30);
             AddCameraModeOption(requestedWidth, requestedHeight, requestedFps);
 
             selectedCameraModeIndex = Application.platform == RuntimePlatform.Android
-                ? FindModeIndex(1280, 720, 60)
+                ? FindModeIndex(640, 640, 60)
                 : FindModeIndex(1920, 1080, 60);
             if (selectedCameraModeIndex < 0)
             {
