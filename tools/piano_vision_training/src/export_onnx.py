@@ -27,15 +27,32 @@ def main():
     export_cfg = cfg.get("export", {})
 
     model = YOLO(str(weights))
-    output = model.export(
-        format=export_cfg.get("format", "onnx"),
-        imgsz=int(export_cfg.get("imgsz", 640)),
-        opset=int(export_cfg.get("opset", 12)),
-        simplify=bool(export_cfg.get("simplify", True)),
-        dynamic=bool(export_cfg.get("dynamic", False)),
-        nms=bool(export_cfg.get("nms", False)),
-        half=bool(export_cfg.get("half", False)),
-    )
+
+    export_kwargs = {
+        "format": export_cfg.get("format", "onnx"),
+        "imgsz": int(export_cfg.get("imgsz", 640)),
+        "opset": int(export_cfg.get("opset", 12)),
+        "simplify": bool(export_cfg.get("simplify", True)),
+        "dynamic": bool(export_cfg.get("dynamic", False)),
+        "nms": bool(export_cfg.get("nms", False)),
+        "half": bool(export_cfg.get("half", False)),
+    }
+
+    # Optional NMS/export knobs used by newer ultralytics versions.
+    # Keep them conditional to remain compatible with older versions.
+    optional_keys = ("conf", "iou", "max_det", "agnostic_nms")
+    for key in optional_keys:
+        if key in export_cfg:
+            export_kwargs[key] = export_cfg[key]
+
+    try:
+        output = model.export(**export_kwargs)
+    except TypeError as ex:
+        # Fallback path for ultralytics versions that don't accept some optional args.
+        for key in optional_keys:
+            export_kwargs.pop(key, None)
+        print(f"[WARN] Optional export args not supported by this ultralytics version: {ex}")
+        output = model.export(**export_kwargs)
 
     print("Export complete:")
     print(output)

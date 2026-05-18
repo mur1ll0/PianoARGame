@@ -147,6 +147,7 @@ Saida gerada:
 Opcional (forcando entradas manualmente):
 - python src/build_keyboard_only_dataset.py --inputs datasets/baixados/My\ First\ Project.v1i.yolov8 datasets/baixados/piano3.v1i.yolov8 datasets/baixados/pianokeyboard.v7i.yolov8 --out datasets/piano_dataset_seg --keep-negatives
 - python src/build_keyboard_only_dataset.py --inputs datasets/baixados/Find_keyboard_area.yolov8 --out datasets/piano_dataset_seg --keep-negatives
+python src/build_keyboard_only_dataset.py --inputs "C:\Users\Murillo\Documents\Unity Projects\PianoARGame\tools\piano_vision_training\datasets\baixados\Find keyboard_area.v7-v3-area-keys-detector.yolov8" --out datasets/piano_dataset_seg --keep-negatives
 
 ## 10) Quando anotar teclas individuais?
 
