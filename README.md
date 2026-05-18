@@ -5,6 +5,8 @@ Overview
 --------
 PianoARGame is an Augmented Reality (AR) learning game that helps users learn piano by overlaying interactive visual guidance on a real keyboard. The project includes Unity scenes, training tools for computer-vision models that detect the keyboard area, and runtime integration for ONNX models used inside the Unity application.
 
+![pianoAR](pianoAR.gif)
+
 Dependencies
 ------------
 - Unity: 6.4.1f1 (project tested/targeted for Unity 6.4 1f1)
