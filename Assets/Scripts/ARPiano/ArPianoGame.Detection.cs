@@ -156,6 +156,7 @@ namespace PianoARGame
                 $"mainInferMs={lastMainThreadInferenceMs:0.00} workerPreMs={lastWorkerPreprocessMs:0.00} " +
                 $"mainScheduleMs={lastMainScheduleMs:0.00} mainPickMs={lastMainPickOutputMs:0.00} mainDecodeMs={lastMainDecodeMs:0.00} " +
                 $"mainDecodeDownloadMs={lastMainDecodeDownloadMs:0.00} mainDecodeCloneFallback={lastMainDecodeUsedCloneFallback} " +
+                $"decodePath={lastDecodePath} " +
                 $"pendingPre={preprocessPending} detectInterval={detectInterval} " +
                 $"inferAge={(Time.realtimeSinceStartup - lastMainThreadInferenceAtTime):0.00}s reqInferInterval={GetRequiredAndroidInferenceIntervalSeconds():0.00}s " +
                 $"maxPreAge={androidMaxPreprocessedFrameAgeSeconds:0.00}s " +
@@ -255,11 +256,12 @@ namespace PianoARGame
             float pickEnd = Time.realtimeSinceStartup;
 
             GetDecodeLimits(out int maxCandidatesBeforeNms, out int maxKeptAfterNms);
+            float effectiveConf = GetEffectiveConfidenceThreshold();
             float decodeStart = pickEnd;
             Detection? best = null;
             if (output != null)
             {
-                best = DecodeBest(output, imageWidth, imageHeight, inputWidth, inputHeight, numClasses, confThreshold, iouThreshold, maxCandidatesBeforeNms, maxKeptAfterNms, out bool usedCloneFallback, out float downloadMs);
+                best = DecodeBest(output, imageWidth, imageHeight, inputWidth, inputHeight, numClasses, effectiveConf, iouThreshold, maxCandidatesBeforeNms, maxKeptAfterNms, out bool usedCloneFallback, out float downloadMs);
                 lastMainDecodeUsedCloneFallback = usedCloneFallback;
                 lastMainDecodeDownloadMs = downloadMs;
                 if (best.HasValue)
@@ -271,6 +273,7 @@ namespace PianoARGame
             {
                 lastMainDecodeUsedCloneFallback = false;
                 lastMainDecodeDownloadMs = 0f;
+                lastDecodePath = "no_output";
             }
             float decodeEnd = Time.realtimeSinceStartup;
 
@@ -286,6 +289,7 @@ namespace PianoARGame
                     $"[ArPianoGame][AndroidInferBreakdown] totalMs={lastMainThreadInferenceMs:0.00} " +
                     $"scheduleMs={lastMainScheduleMs:0.00} pickMs={lastMainPickOutputMs:0.00} decodeMs={lastMainDecodeMs:0.00} " +
                     $"decodeDownloadMs={lastMainDecodeDownloadMs:0.00} decodeCloneFallback={lastMainDecodeUsedCloneFallback} " +
+                    $"decodePath={lastDecodePath} " +
                     $"decodeCap={maxCandidatesBeforeNms}/{maxKeptAfterNms} scanMax={androidDecodeScanMaxCandidates} sample={enableAndroidFastDecodeSampling} " +
                     $"input={inputWidth}x{inputHeight} outputNull={(output == null)}");
             }
@@ -731,7 +735,8 @@ namespace PianoARGame
                                 {
                                     decodeStartTicks = Stopwatch.GetTimestamp();
                                     GetDecodeLimits(out int maxCandidatesBeforeNms, out int maxKeptAfterNms);
-                                    best = DecodeBest(output, width, height, inputWidth, inputHeight, numClasses, confThreshold, iouThreshold, maxCandidatesBeforeNms, maxKeptAfterNms, out _, out _);
+                                    float effectiveConf = GetEffectiveConfidenceThreshold();
+                                    best = DecodeBest(output, width, height, inputWidth, inputHeight, numClasses, effectiveConf, iouThreshold, maxCandidatesBeforeNms, maxKeptAfterNms, out _, out _);
                                     decodeEndTicks = Stopwatch.GetTimestamp();
                                     if (best.HasValue)
                                     {
@@ -875,7 +880,8 @@ namespace PianoARGame
             }
 
             GetDecodeLimits(out int maxCandidatesBeforeNms, out int maxKeptAfterNms);
-            Detection? best = DecodeBest(output, correctedWidth, correctedHeight, currentInputWidth, currentInputHeight, numClasses, confThreshold, iouThreshold, maxCandidatesBeforeNms, maxKeptAfterNms, out _, out _);
+            float effectiveConf = GetEffectiveConfidenceThreshold();
+            Detection? best = DecodeBest(output, correctedWidth, correctedHeight, currentInputWidth, currentInputHeight, numClasses, effectiveConf, iouThreshold, maxCandidatesBeforeNms, maxKeptAfterNms, out _, out _);
             if (best.HasValue)
             {
                 best = ConvertDetectionToTopLeft(best.Value, correctedHeight);
@@ -1102,8 +1108,17 @@ namespace PianoARGame
             int features = featuresFirst ? dim1 : dim2;
             if (features < 4 + Mathf.Max(1, classes))
             {
+                lastDecodePath = "raw_invalid_shape";
                 return null;
             }
+
+            if (ShouldUseEmbeddedNmsDecoding(candidates, features, featuresFirst))
+            {
+                lastDecodePath = "embedded_nms";
+                return DecodeBestEmbeddedNms(data, candidates, features, featuresFirst, imageW, imageH, inputW, inputH, conf);
+            }
+
+            lastDecodePath = "raw_nms";
 
             int candidateStep = GetDecodeCandidateStep(candidates);
             bool singleClass = classes <= 1;
@@ -1187,6 +1202,94 @@ namespace PianoARGame
             return decodeKept[0];
         }
 
+        private bool ShouldUseEmbeddedNmsDecoding(int candidates, int features, bool featuresFirst)
+        {
+            if (!preferEmbeddedNmsDecoding)
+            {
+                return false;
+            }
+
+            // YOLO seg export with NMS usually returns [1, max_det, 6 + nmasks], e.g. [1, 50, 38].
+            return !featuresFirst && candidates > 0 && candidates <= 300 && features >= 6;
+        }
+
+        private Detection? DecodeBestEmbeddedNms(float[] data, int candidates, int features, bool featuresFirst, int imageW, int imageH, int inputW, int inputH, float conf)
+        {
+            Detection? best = null;
+            float bestScore = conf;
+
+            for (int c = 0; c < candidates; c++)
+            {
+                float score = Read(data, c, 4, candidates, features, featuresFirst);
+                if (score < conf || float.IsNaN(score) || float.IsInfinity(score))
+                {
+                    continue;
+                }
+
+                float x1 = Read(data, c, 0, candidates, features, featuresFirst);
+                float y1 = Read(data, c, 1, candidates, features, featuresFirst);
+                float x2 = Read(data, c, 2, candidates, features, featuresFirst);
+                float y2 = Read(data, c, 3, candidates, features, featuresFirst);
+                if (!TryConvertEmbeddedNmsBoxToImage(ref x1, ref y1, ref x2, ref y2, imageW, imageH, inputW, inputH))
+                {
+                    continue;
+                }
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    best = new Detection(x1, y1, x2, y2, score);
+                }
+            }
+
+            return best;
+        }
+
+        private static bool TryConvertEmbeddedNmsBoxToImage(ref float x1, ref float y1, ref float x2, ref float y2, int imageW, int imageH, int inputW, int inputH)
+        {
+            if (float.IsNaN(x1) || float.IsNaN(y1) || float.IsNaN(x2) || float.IsNaN(y2) ||
+                float.IsInfinity(x1) || float.IsInfinity(y1) || float.IsInfinity(x2) || float.IsInfinity(y2))
+            {
+                return false;
+            }
+
+            float maxAbs = Mathf.Max(Mathf.Abs(x1), Mathf.Abs(y1), Mathf.Abs(x2), Mathf.Abs(y2));
+
+            if (maxAbs <= 2f)
+            {
+                x1 *= imageW;
+                y1 *= imageH;
+                x2 *= imageW;
+                y2 *= imageH;
+            }
+            else if (maxAbs <= Mathf.Max(inputW, inputH) * 1.5f)
+            {
+                float sx = imageW / (float)Mathf.Max(1, inputW);
+                float sy = imageH / (float)Mathf.Max(1, inputH);
+                x1 *= sx;
+                y1 *= sy;
+                x2 *= sx;
+                y2 *= sy;
+            }
+
+            if (x2 < x1)
+            {
+                (x1, x2) = (x2, x1);
+            }
+
+            if (y2 < y1)
+            {
+                (y1, y2) = (y2, y1);
+            }
+
+            x1 = Mathf.Clamp(x1, 0f, imageW - 1f);
+            y1 = Mathf.Clamp(y1, 0f, imageH - 1f);
+            x2 = Mathf.Clamp(x2, x1 + 1f, imageW);
+            y2 = Mathf.Clamp(y2, y1 + 1f, imageH);
+
+            return (x2 - x1) > 1f && (y2 - y1) > 1f;
+        }
+
         private static bool TryDownloadTensorData(Tensor<float> outputTensor, ref TensorShape shape, out float[] data, out bool usedCloneFallback)
         {
             data = null;
@@ -1235,6 +1338,52 @@ namespace PianoARGame
             }
 
             return Mathf.Max(1, Mathf.CeilToInt(candidates / (float)scanLimit));
+        }
+
+        private void ApplyAndroidDecodePerformancePresetOnStartup()
+        {
+            if (Application.platform != RuntimePlatform.Android || !applyAndroidDecodePerfPresetOnStartup)
+            {
+                return;
+            }
+
+            enableAndroidFastDecodeSampling = true;
+            androidDecodeScanMaxCandidates = 300;
+            androidDecodeMaxCandidates = 48;
+            androidDecodeMaxKept = 12;
+            confThreshold = Mathf.Max(confThreshold, 0.5f);
+            androidAcquireConfThreshold = Mathf.Min(androidAcquireConfThreshold, 0.35f);
+            androidAlignStableHitsRequired = Mathf.Clamp(androidAlignStableHitsRequired, 3, 12);
+
+            if (enableAndroidThreadDiagnostics)
+            {
+                Debug.Log($"[ArPianoGame][AndroidThreadDiag] applied decode perf preset: confTrack={confThreshold:0.00} confAcquire={androidAcquireConfThreshold:0.00} stableAlign={androidAlignStableHitsRequired} decodeCap={androidDecodeMaxCandidates}/{androidDecodeMaxKept} scanMax={androidDecodeScanMaxCandidates} sample={enableAndroidFastDecodeSampling}");
+            }
+        }
+
+        private float GetEffectiveConfidenceThreshold()
+        {
+            if (Application.platform != RuntimePlatform.Android)
+            {
+                return confThreshold;
+            }
+
+            if (stableHits <= 0)
+            {
+                return Mathf.Clamp(Mathf.Min(confThreshold, androidAcquireConfThreshold), 0.05f, 0.95f);
+            }
+
+            return confThreshold;
+        }
+
+        private int GetEffectiveStableHitsRequired()
+        {
+            if (Application.platform == RuntimePlatform.Android && state == GameState.Align)
+            {
+                return Mathf.Clamp(androidAlignStableHitsRequired, 1, 100);
+            }
+
+            return Mathf.Clamp(stableHitsRequired, 1, 100);
         }
 
         private static void AddCandidateTopK(List<Detection> collection, Detection candidate, int maxCount)

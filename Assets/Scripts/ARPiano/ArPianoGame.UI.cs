@@ -434,14 +434,15 @@ namespace PianoARGame
                     $"Area detectada conf: {bestConf * 100f:0.0}%", new Color(0.08f, 0.08f, 0.08f, 0.65f));
             }
 
-            float ratio = Mathf.Clamp01(stableHits / (float)Mathf.Max(1, stableHitsRequired));
+            int effectiveStableHitsRequired = GetEffectiveStableHitsRequired();
+            float ratio = Mathf.Clamp01(stableHits / (float)Mathf.Max(1, effectiveStableHitsRequired));
             Rect bar = new Rect(U(70f), Screen.height - U(140f), Screen.width - U(140f), U(28f));
             DrawRect(bar, new Color(0.16f, 0.16f, 0.16f, 0.8f));
             DrawRect(new Rect(bar.x, bar.y, bar.width * ratio, bar.height), new Color(0.15f, 0.72f, 0.23f, 0.9f));
             DrawOutline(bar, Color.white, 1f);
-            GUI.Label(new Rect(U(70f), Screen.height - U(180f), U(380f), U(24f)), $"Tracking estavel: {stableHits}/{stableHitsRequired}", textStyle);
+            GUI.Label(new Rect(U(70f), Screen.height - U(180f), U(380f), U(24f)), $"Tracking estavel: {stableHits}/{effectiveStableHitsRequired}", textStyle);
 
-            bool canStart = keyboardArea.HasValue && stableHits >= stableHitsRequired;
+            bool canStart = keyboardArea.HasValue && stableHits >= effectiveStableHitsRequired;
 
             float bottomY = Screen.height - U(90f);
             float controlH = U(58f);
@@ -730,6 +731,13 @@ namespace PianoARGame
                         enableAndroidFastDecodeSampling = GUI.Toggle(new Rect(U(8f), y, viewRect.width - U(20f), U(34f)), enableAndroidFastDecodeSampling, "Android: fast decode sampling");
                         y += U(42f);
                         DrawIntStepperRow(ref y, viewRect.width, "Android decode scan max", ref androidDecodeScanMaxCandidates, 128, 5000, 64);
+                        applyAndroidDecodePerfPresetOnStartup = GUI.Toggle(new Rect(U(8f), y, viewRect.width - U(20f), U(34f)), applyAndroidDecodePerfPresetOnStartup, "Aplicar preset desempenho Android no boot");
+                        y += U(42f);
+                        if (GUI.Button(new Rect(U(8f), y, viewRect.width - U(20f), U(40f)), "Aplicar preset desempenho agora", buttonStyle))
+                        {
+                            ApplyAndroidDecodePerformancePresetOnStartup();
+                        }
+                        y += U(50f);
                         enableAndroidMainInferBreakdown = GUI.Toggle(new Rect(U(8f), y, viewRect.width - U(20f), U(34f)), enableAndroidMainInferBreakdown, "Android: log breakdown inferencia");
                         y += U(42f);
 

@@ -79,6 +79,8 @@ namespace PianoARGame
         [SerializeField, Min(1)] private int numClasses = 1;
         [SerializeField, Range(0.05f, 0.95f)] private float confThreshold = 0.3f;
         [SerializeField, Range(0.05f, 0.95f)] private float iouThreshold = 0.45f;
+        [SerializeField] private bool preferEmbeddedNmsDecoding = true;
+        [SerializeField] private bool applyAndroidDecodePerfPresetOnStartup = true;
 
         [Header("Camera")]
         [SerializeField] private string cameraDeviceName = "";
@@ -109,12 +111,14 @@ namespace PianoARGame
         [SerializeField] private bool enableAndroidAdaptiveInputSize = true;
         [SerializeField, Range(160, 1280)] private int androidAlignInputSize = 416;
         [SerializeField, Range(160, 1280)] private int androidGameInputSize = 320;
-        [SerializeField, Range(16, 1000)] private int androidDecodeMaxCandidates = 120;
-        [SerializeField, Range(8, 300)] private int androidDecodeMaxKept = 40;
+        [SerializeField, Range(16, 1000)] private int androidDecodeMaxCandidates = 48;
+        [SerializeField, Range(8, 300)] private int androidDecodeMaxKept = 12;
         [SerializeField] private bool enableAndroidFastDecodeSampling = true;
-        [SerializeField, Range(128, 5000)] private int androidDecodeScanMaxCandidates = 1200;
+        [SerializeField, Range(128, 5000)] private int androidDecodeScanMaxCandidates = 300;
         [SerializeField] private bool enableAndroidWorkerInference = true;
         [SerializeField] private bool enableAndroidMainInferBreakdown = true;
+        [SerializeField, Range(0.05f, 0.95f)] private float androidAcquireConfThreshold = 0.35f;
+        [SerializeField, Min(1)] private int androidAlignStableHitsRequired = 6;
         [SerializeField, Range(0.1f, 3f)] private float androidMinInferenceIntervalSeconds = 1.2f;
         [SerializeField, Range(0.5f, 6f)] private float androidMaxInferenceIntervalSeconds = 3f;
         [SerializeField, Min(1f)] private float androidSlowInferenceThresholdMs = 120f;
@@ -228,6 +232,7 @@ namespace PianoARGame
         private float lastMainDecodeMs;
         private float lastMainDecodeDownloadMs;
         private bool lastMainDecodeUsedCloneFallback;
+        private string lastDecodePath = "unknown";
         private float lastWorkerPreprocessMs;
         private float lastMainThreadInferenceAtTime;
         private int mainThreadManagedId;
@@ -274,6 +279,7 @@ namespace PianoARGame
             Application.runInBackground = true;
             ConfigureAndroidOrientation();
             ConfigureFramePacing();
+            ApplyAndroidDecodePerformancePresetOnStartup();
             InitializeMidiRepository();
             StartCoroutine(BootstrapCameraStartup());
 

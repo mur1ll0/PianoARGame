@@ -427,19 +427,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8db8bd60435513e44b557e34d8cd96b3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PianoARGame.ArPianoGame
-  onnxModel: {fileID: 5022602860645237092, guid: 9975cda6bd16ccf4a89e21295b4902b4, type: 3}
+  onnxModel: {fileID: 5022602860645237092, guid: d8cf7c07a4eb8a8498913b6851d0d94b, type: 3}
   resourcesModelPath: AIModels/piano_SGD
   backendType: 0
   fallbackInputSize: 640
   numClasses: 1
   confThreshold: 0.3
   iouThreshold: 0.45
+  applyAndroidDecodePerfPresetOnStartup: 1
   cameraDeviceName: 
   requestedWidth: 1920
   requestedHeight: 1080
   requestedFps: 60
+  preferBackCamera: 1
   midiDirectoryDesktop: C:\Users\Murillo\Music\MIDI
   midiStreamingAssetsSubFolder: MIDI
+  midiDirectoryAndroidDownloads: /storage/emulated/0/Download
   detectInterval: 5
   stableHitsRequired: 12
   countdownSeconds: 3
@@ -447,6 +450,23 @@ MonoBehaviour:
   songSpeed: 1
   autoStartFirst: 0
   enableHmdModeOnGameStart: 1
+  enableDetectionThreadingOnAndroid: 1
+  enableAndroidThreadDiagnostics: 1
+  enableAndroidAdaptiveInputSize: 1
+  androidAlignInputSize: 416
+  androidGameInputSize: 320
+  androidDecodeMaxCandidates: 120
+  androidDecodeMaxKept: 40
+  enableAndroidFastDecodeSampling: 1
+  androidDecodeScanMaxCandidates: 1200
+  enableAndroidWorkerInference: 1
+  enableAndroidMainInferBreakdown: 1
+  androidAcquireConfThreshold: 0.35
+  androidAlignStableHitsRequired: 6
+  androidMinInferenceIntervalSeconds: 0.55
+  androidMaxInferenceIntervalSeconds: 1.5
+  androidSlowInferenceThresholdMs: 120
+  androidMaxPreprocessedFrameAgeSeconds: 0.25
   dumpInferenceArtifacts: 0
   dumpInferenceArtifactLimit: 3
   dumpInferenceFolderName: DebugDumps/Unity

@@ -401,3 +401,58 @@ Conclusao objetiva:
 Implicacao para `reqInferInterval`:
 1. Remover `reqInferInterval` agora (rodar inferencia imediatamente em sequencia) tende a piorar a travada visual, porque aumentaria a frequencia de um bloco que ainda custa ~0.45-0.57s na main thread.
 2. O caminho correto e reduzir primeiro o custo de `decodeMs`, depois reavaliar reducao/agressividade do intervalo.
+
+## 17. Atualizacao de Implementacao - Modelo ONNX com NMS Embutido
+
+Resumo do que foi implementado apos os testes da secao 16:
+1. Export de modelo com NMS embutido a partir do `best.pt` (`pianoB-seg_unity_focus_nms640.onnx`).
+2. Adicao de caminho de decode dedicado no Unity para saida com NMS embutido (`decodePath=embedded_nms`), evitando NMS completo em C#.
+3. Logs de diagnostico ampliados:
+   - `decodePath` (`embedded_nms`, `raw_nms`, `no_output`, etc.)
+   - visibilidade de `workerInferMode` e backend efetivo.
+4. Ajustes finos Android aplicados:
+   - camera solicitada em `640x640@60`
+   - preset de decode (`48/12`, `scanMax=300`, sampling ON)
+   - thresholds de aquisicao/tracking separados (`confAcquire`/`confTrack`)
+   - requisito de estabilidade no Align reduzido para acelerar lock inicial.
+5. Pipeline concorrente mantido (latest-wins), com preprocess em worker e inferencia habilitavel no worker.
+
+Resultado funcional observado:
+1. Eliminacao do gargalo de decode/readback de centenas de ms na fase de decode puro.
+2. Parser NMS embutido validado por log em device real.
+
+## 18. Diagnostico dos Logs Mais Recentes (2026-05-03 23:25)
+
+Fonte:
+1. Marcadores `[ArPianoGame][AndroidThreadDiag]` e `[ArPianoGame][AndroidInferBreakdown]`.
+
+Sinais fortes de que a adaptacao para o novo modelo funcionou:
+1. `decodePath=embedded_nms` de forma consistente.
+2. `decodeMs` ~`0.04` a `0.07` ms (queda massiva versus ~`435` a `572` ms anteriores).
+3. `decodeDownloadMs` ~`0.04` a `0.07` ms.
+4. `workerInferMode=True` com thread de deteccao ativa (`threadReady=True`, `initFailed=False`).
+
+Novo gargalo observado:
+1. `mainScheduleMs` (telemetria da etapa de inferencia) em torno de ~`455` a `508` ms.
+2. `mainInferMs` acompanha esse valor (tipicamente ~`454` a `508` ms).
+3. `mainPickMs` permanece residual (~`0.00`).
+
+Interpretacao tecnica atualizada:
+1. O gargalo dominante migrou de **decode** para **execucao do grafo (schedule/inference)**.
+2. A melhora de decode confirma que o NMS embutido atingiu o objetivo principal dessa etapa.
+3. A travada percebida e readaptacao lenta agora estao mais ligadas ao custo de inferencia do modelo (e sua cadencia), nao ao decode C#.
+
+Observacoes de usabilidade a partir dos logs:
+1. `camFps` oscila (faixas vistas ~`42`-`56`, com momentos em ~`60` e quedas pontuais), apesar de `renderFpsEma` perto de `60`.
+2. O intervalo dinamico requerido (`reqInferInterval`) continua elevando para ~`1.36`-`1.52`s devido custo alto por execucao.
+
+## 19. Proximo Passo Recomendado (apos NMS embutido)
+
+Como o decode foi resolvido, a prioridade passa a ser reduzir custo de inferencia:
+1. Treinar/exportar variante mais leve para Unity (`yolov8n-seg` ou versao quantizada), mantendo input `640` inicialmente para comparacao justa.
+2. Testar export com `imgsz` menor (`416`/`512`) e medir impacto em lock de teclado.
+3. Avaliar backend alternativo por device (allowlist) somente se reduzir tempo de schedule sem quebrar estabilidade.
+4. Reajustar `detectInterval`/`reqInferInterval` somente depois de reduzir custo base de inferencia.
+
+Meta atualizada:
+1. Trazer custo de inferencia (schedule) para faixa sustentavel (<`150`-`220` ms) mantendo camera fluida e lock de tracking rapido.

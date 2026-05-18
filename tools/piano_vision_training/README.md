@@ -65,6 +65,23 @@ python src/export_onnx.py --weights runs/segment/runs/piano_detector_candidateB_
 
 python src/export_onnx.py --weights runs/segment/runs/piano_detector_candidateB_seg_unity_focus/weights/best.pt --config configs/train_config_unity_focus.yaml
 
+### Exportar ONNX com NMS embutido (recomendado para Unity Android)
+
+Config dedicado:
+- configs/train_config_unity_focus_nms.yaml
+
+Comando:
+
+python src/export_onnx.py --weights runs/segment/runs/piano_detector_candidateB_seg_unity_focus/weights/best.pt --config configs/train_config_unity_focus_nms.yaml
+
+Esse export ativa NMS no grafo ONNX e aplica:
+- conf: 0.25
+- iou: 0.45
+- max_det: 50
+
+Se sua versao do ultralytics nao suportar algum parametro opcional,
+o script cai para export sem esses parametros extras automaticamente.
+
 ## Validar contrato ONNX
 
 python src/check_onnx_contract.py --model runs/segment/runs/piano_detector_candidateB_seg/weights/best.onnx --expect-input 1,3,640,640 --expect-output 1,37,8400 --strict
